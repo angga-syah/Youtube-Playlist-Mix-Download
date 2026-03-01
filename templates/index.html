@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YT Downloader</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --card2: #1c2128;
+      --border: #30363d;
+      --accent: #e94560;
+      --accent2: #ff6b9d;
+      --text: #c9d1d9;
+      --muted: #8b949e;
+      --green: #3fb950;
+      --red: #f85149;
+      --yellow: #d29922;
+      --input-bg: #0d1117;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .topbar h1 { font-size: 18px; color: var(--accent); letter-spacing: -0.3px; }
+    .topbar .subtitle { color: var(--muted); font-size: 12px; }
+
+    .main { max-width: 860px; margin: 0 auto; padding: 24px 16px 60px; }
+
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 16px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 14px;
+    }
+
+    .row { display: flex; gap: 8px; align-items: center; }
+
+    input[type=text], select {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 8px 12px;
+      color: var(--text);
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    input[type=text]:focus, select:focus { border-color: var(--accent); }
+    input[type=text] { width: 100%; }
+    select { cursor: pointer; }
+
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .btn:hover:not(:disabled) { opacity: 0.85; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-ghost {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-ghost:hover:not(:disabled) { background: var(--border); opacity: 1; }
+    .btn-sm { padding: 5px 12px; font-size: 12px; }
+    .btn-green { background: #238636; }
+    .btn-green:hover:not(:disabled) { opacity: 0.85; }
+
+    /* Bulk rename */
+    .bulk-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .bulk-row input { width: 160px; flex: none; }
+    .bulk-preview { font-size: 12px; color: var(--muted); margin-left: 4px; }
+
+    /* Track list */
+    #tracks-container {
+      max-height: 420px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .track-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 0;
+      border-bottom: 1px solid var(--border);
+    }
+    .track-item:last-child { border-bottom: none; }
+    .track-num {
+      color: var(--accent);
+      font-weight: 600;
+      font-size: 12px;
+      min-width: 28px;
+      text-align: right;
+    }
+    .track-input {
+      flex: 1;
+      background: var(--input-bg);
+      border: 1px solid transparent;
+      border-radius: 5px;
+      padding: 5px 9px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+    .track-input:focus { border-color: var(--accent); }
+    .track-reset {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      padding: 4px 6px;
+      border-radius: 4px;
+      font-size: 14px;
+      transition: color 0.15s;
+    }
+    .track-reset:hover { color: var(--text); }
+
+    /* Options */
+    .options-grid { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-end; }
+    .opt-group { display: flex; flex-direction: column; gap: 6px; }
+    .opt-label { font-size: 12px; color: var(--muted); }
+
+    /* Progress */
+    .progress-bar-bg {
+      background: var(--card2);
+      border-radius: 6px;
+      height: 8px;
+      overflow: hidden;
+      margin: 10px 0;
+    }
+    .progress-bar-fill {
+      background: linear-gradient(90deg, var(--accent), var(--accent2));
+      height: 100%;
+      border-radius: 6px;
+      transition: width 0.4s ease;
+    }
+    .progress-text { font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+
+    #log-container {
+      margin-top: 10px;
+      max-height: 280px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+    .log-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .log-item:last-child { border-bottom: none; }
+    .log-item.done { color: var(--green); }
+    .log-item.error { color: var(--red); }
+    .log-item.active { color: var(--yellow); }
+    .log-icon { font-size: 13px; min-width: 16px; }
+
+    .save-path {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 12px;
+      padding: 7px 10px;
+      background: var(--card2);
+      border-radius: 5px;
+      word-break: break-all;
+    }
+
+    .badge {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 500;
+    }
+    .badge-playlist { background: #388bfd22; color: #79c0ff; border: 1px solid #388bfd44; }
+    .badge-video { background: #3fb95022; color: var(--green); border: 1px solid #3fb95044; }
+
+    .info-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+    .info-title { font-size: 15px; font-weight: 600; }
+    .info-count { color: var(--muted); font-size: 13px; }
+
+    .hidden { display: none !important; }
+
+    .spinner {
+      display: inline-block;
+      width: 14px; height: 14px;
+      border: 2px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .radio-warn {
+      background: #388bfd18;
+      border: 1px solid #388bfd44;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #79c0ff;
+      margin-top: 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+    }
+    .radio-warn strong { color: #a5d6ff; }
+    .limit-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+    .limit-row label { font-size: 13px; color: var(--muted); white-space: nowrap; }
+    .limit-row input[type=number] {
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+      width: 90px;
+    }
+    .limit-row input[type=number]:focus { border-color: var(--accent); }
+
+    .ffmpeg-warn {
+      background: #d2992222;
+      border: 1px solid #d2992244;
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 12px;
+      color: var(--yellow);
+      margin-top: 10px;
+    }
+
+    .subfolder-box {
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 14px;
+      margin-top: 14px;
+    }
+    .subfolder-box label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      cursor: pointer;
+      font-size: 13px;
+      user-select: none;
+    }
+    .subfolder-box input[type=checkbox] { width: 15px; height: 15px; accent-color: var(--accent); cursor: pointer; }
+    .subfolder-path {
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: var(--bg);
+      border-radius: 5px;
+      word-break: break-all;
+      border: 1px solid var(--border);
+    }
+    .subfolder-path .hl { color: var(--accent2); font-weight: 600; }
+
+    /* Settings modal */
+    .modal-bg {
+      position: fixed; inset: 0; background: #000a;
+      display: flex; align-items: center; justify-content: center;
+      z-index: 100; padding: 16px;
+    }
+    .modal {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px; width: 100%; max-width: 460px;
+    }
+    .modal h2 { font-size: 16px; margin-bottom: 4px; }
+    .modal .sub { font-size: 13px; color: var(--muted); margin-bottom: 20px; }
+    .modal-footer { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+    .topbar-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+    .icon-btn {
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); padding: 6px 10px; cursor: pointer; font-size: 15px;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .icon-btn:hover { color: var(--text); border-color: var(--muted); }
+    .save-ok { color: var(--green); font-size: 13px; display: none; }
+  </style>
+</head>
+<body>
+
+<!-- Settings modal -->
+<div class="modal-bg hidden" id="settings-modal" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h2>⚙ Pengaturan</h2>
+    <p class="sub">Ubah folder penyimpanan default.</p>
+    <div class="opt-label" style="margin-bottom:6px;">Folder Download</div>
+    <input type="text" id="settings-path" style="width:100%;"
+           placeholder="Contoh: D:\Download\YT" />
+    <div class="modal-footer">
+      <span class="save-ok" id="save-ok">✓ Tersimpan</span>
+      <button class="btn btn-ghost btn-sm" onclick="closeSettings()">Batal</button>
+      <button class="btn btn-sm" onclick="saveSettings()">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<div class="topbar">
+  <div>
+    <h1>&#9654; YT Downloader</h1>
+    <div class="subtitle">Video &amp; Playlist — dengan rename sebelum download</div>
+  </div>
+  <div class="topbar-right">
+    <a href="PANDUAN.html" target="_blank" class="icon-btn" title="Panduan">?</a>
+    <button class="icon-btn" title="Pengaturan" onclick="openSettings()">⚙</button>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- URL Input -->
+  <div class="card">
+    <div class="card-title">URL YouTube</div>
+    <div class="row">
+      <input type="text" id="url-input"
+        placeholder="https://www.youtube.com/watch?v=... atau playlist link"
+        onkeydown="if(event.key==='Enter') fetchInfo()"
+        oninput="onUrlInput()" />
+      <button class="btn" id="fetch-btn" onclick="fetchInfo()">Ambil Info</button>
+    </div>
+
+    <!-- Radio/Mix warning + limit input -->
+    <div class="radio-warn hidden" id="radio-warn">
+      <span style="font-size:18px;line-height:1;">&#x1F4FB;</span>
+      <div>
+        <strong>YouTube Radio / Mix terdeteksi</strong><br>
+        Playlist ini auto-generated dan bisa berisi ratusan bahkan ribuan track.
+        Sebaiknya batasi jumlah track yang di-fetch.
+      </div>
+    </div>
+    <div class="limit-row" id="limit-row" style="display:none;">
+      <label for="track-limit">Batas track yang di-fetch:</label>
+      <input type="number" id="track-limit" value="25" min="1" max="9999" />
+      <span style="font-size:12px;color:var(--muted);">(kosongkan = semua, tidak disarankan untuk Radio)</span>
+    </div>
+  </div>
+
+  <!-- Track List -->
+  <div class="card hidden" id="tracks-card">
+    <div class="info-row">
+      <span class="info-title" id="playlist-title"></span>
+      <span class="badge" id="type-badge"></span>
+      <span class="info-count" id="track-count"></span>
+    </div>
+
+    <!-- Bulk Rename -->
+    <div style="background:var(--card2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px;">
+      <div class="opt-label" style="margin-bottom:8px;">
+        &#x1F4DD; <strong>Bulk Rename</strong> &mdash; isi prefix, semua track akan diberi nomor otomatis
+      </div>
+      <div class="bulk-row">
+        <input type="text" id="bulk-prefix" placeholder="Contoh: DJ, Track, Song..." />
+        <button class="btn btn-sm" onclick="applyBulkRename()">Apply</button>
+        <button class="btn btn-sm btn-ghost" onclick="resetAllNames()">Reset Semua</button>
+        <span class="bulk-preview" id="bulk-preview"></span>
+      </div>
+    </div>
+
+    <div class="card-title">Daftar Track (nama bisa diedit langsung)</div>
+    <div id="tracks-container"></div>
+  </div>
+
+  <!-- Download Options -->
+  <div class="card hidden" id="options-card">
+    <div class="card-title">Opsi Download</div>
+    <div class="options-grid">
+      <div class="opt-group">
+        <div class="opt-label">Format File</div>
+        <select id="format-select" onchange="onFormatChange()">
+          <option value="mp4">&#x1F3AC; MP4 (Video)</option>
+          <option value="mp3">&#x1F3B5; MP3 (Audio Only)</option>
+          <option value="webm">&#x1F4FA; WebM (Video)</option>
+        </select>
+      </div>
+      <div class="opt-group" id="quality-group">
+        <div class="opt-label">Kualitas</div>
+        <select id="quality-select">
+          <option value="best">&#x2B50; Best Available</option>
+          <option value="1080">1080p</option>
+          <option value="720">720p</option>
+          <option value="480">480p</option>
+          <option value="360">360p</option>
+        </select>
+      </div>
+      <div class="opt-group">
+        <div class="opt-label">&nbsp;</div>
+        <button class="btn btn-green" id="download-btn" onclick="startDownload()">
+          &#x2B07; Download
+        </button>
+      </div>
+    </div>
+    <div class="ffmpeg-warn" id="ffmpeg-warn" style="display:none;">
+      &#x26A0; <strong>FFmpeg diperlukan</strong> untuk MP3 dan video HD terpisah.
+      Download: <a href="https://ffmpeg.org/download.html" style="color:var(--yellow);" target="_blank">ffmpeg.org</a>
+      dan tambahkan ke PATH.
+    </div>
+
+    <!-- Subfolder -->
+    <div class="subfolder-box">
+      <label>
+        <input type="checkbox" id="subfolder-check" onchange="onSubfolderToggle()" />
+        Simpan dalam subfolder
+      </label>
+      <div id="subfolder-input-row" style="margin-top:10px;display:none;">
+        <input type="text" id="subfolder-name" placeholder="Nama subfolder..."
+          oninput="updatePathPreview()" style="width:100%;" />
+      </div>
+      <div class="subfolder-path" id="path-preview"></div>
+    </div>
+  </div>
+
+  <!-- Progress -->
+  <div class="card hidden" id="progress-card">
+    <div class="card-title">Progress Download</div>
+    <div class="progress-text" id="progress-text">Memulai...</div>
+    <div class="progress-bar-bg">
+      <div class="progress-bar-fill" id="progress-fill" style="width:0%"></div>
+    </div>
+    <div id="log-container"></div>
+  </div>
+
+</div><!-- /main -->
+
+<script>
+  let tracks = [];
+  let origTitles = [];
+  let mediaType = 'video';
+  let mediaTitle = '';
+  const BASE_DIR = 'E:\\Download\\sementara';
+  const sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+  // --- Radio/Mix detection ---
+  function isRadioUrl(url) {
+    try {
+      const p = new URL(url).searchParams;
+      const list = p.get('list') || '';
+      return list.startsWith('RD') || url.includes('start_radio=1');
+    } catch { return false; }
+  }
+
+  function onUrlInput() {
+    const url = document.getElementById('url-input').value.trim();
+    const radio = isRadioUrl(url);
+    document.getElementById('radio-warn').classList.toggle('hidden', !radio);
+    document.getElementById('limit-row').style.display = radio ? '' : 'none';
+    if (radio && !document.getElementById('track-limit').value) {
+      document.getElementById('track-limit').value = 25;
+    }
+  }
+
+  // --- Subfolder ---
+  function onSubfolderToggle() {
+    const checked = document.getElementById('subfolder-check').checked;
+    document.getElementById('subfolder-input-row').style.display = checked ? '' : 'none';
+    updatePathPreview();
+  }
+
+  function updatePathPreview() {
+    const checked = document.getElementById('subfolder-check').checked;
+    const name = document.getElementById('subfolder-name').value.trim();
+    let path = BASE_DIR_CURRENT || BASE_DIR;
+    if (checked && name) path += '\\' + name;
+    document.getElementById('path-preview').innerHTML =
+      '&#x1F4C1; ' + esc(path) + (checked && name ? '<span class="hl">\\</span>' : '\\');
+  }
+
+  function setupSubfolderUI(type, title) {
+    const isPlaylist = type === 'playlist';
+    const check = document.getElementById('subfolder-check');
+    check.checked = isPlaylist;                           // playlist: ON, video: OFF
+    document.getElementById('subfolder-name').value = title;
+    document.getElementById('subfolder-input-row').style.display = isPlaylist ? '' : 'none';
+    updatePathPreview();
+  }
+
+  // --- Format change ---
+  function onFormatChange() {
+    const fmt = document.getElementById('format-select').value;
+    document.getElementById('quality-group').style.display = fmt === 'mp3' ? 'none' : '';
+    document.getElementById('ffmpeg-warn').style.display =
+      (fmt === 'mp3' || fmt === 'webm') ? '' : 'none';
+  }
+
+  // --- Bulk preview update ---
+  document.getElementById('bulk-prefix').addEventListener('input', function() {
+    const p = this.value.trim();
+    if (!p || !tracks.length) { document.getElementById('bulk-preview').textContent = ''; return; }
+    const n = tracks.length;
+    document.getElementById('bulk-preview').textContent =
+      `→ ${p} 1, ${p} 2${n > 2 ? `, ... ${p} ${n}` : ''}`;
+  });
+
+  // --- Fetch info ---
+  async function fetchInfo() {
+    const url = document.getElementById('url-input').value.trim();
+    if (!url) return alert('Masukkan URL terlebih dahulu.');
+
+    const btn = document.getElementById('fetch-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Loading...';
+
+    try {
+      const limitVal = document.getElementById('track-limit').value.trim();
+      const limit = limitVal ? parseInt(limitVal, 10) : null;
+
+      const res = await fetch('/fetch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, limit }),
+      });
+      const data = await res.json();
+      if (data.error) { alert('Error: ' + data.error); return; }
+
+      tracks = data.tracks;
+      origTitles = data.tracks.map(t => t.title);
+      mediaType = data.type;
+      mediaTitle = data.title;
+
+      document.getElementById('playlist-title').textContent = data.title;
+      const badge = document.getElementById('type-badge');
+      badge.textContent = data.type === 'playlist' ? 'Playlist' : 'Video';
+      badge.className = 'badge ' + (data.type === 'playlist' ? 'badge-playlist' : 'badge-video');
+      document.getElementById('track-count').textContent =
+        `${data.count} track${data.count !== 1 ? 's' : ''}` +
+        (data.limited ? ' (dibatasi)' : '');
+
+      renderTracks();
+      setupSubfolderUI(data.type, data.title);
+
+      document.getElementById('tracks-card').classList.remove('hidden');
+      document.getElementById('options-card').classList.remove('hidden');
+      document.getElementById('progress-card').classList.add('hidden');
+
+    } catch (e) {
+      alert('Gagal: ' + e.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Ambil Info';
+    }
+  }
+
+  // --- Render track list ---
+  function renderTracks() {
+    const c = document.getElementById('tracks-container');
+    c.innerHTML = '';
+    tracks.forEach((t, i) => {
+      const div = document.createElement('div');
+      div.className = 'track-item';
+      div.innerHTML =
+        `<span class="track-num">${t.index}</span>` +
+        `<input class="track-input" type="text" value="${esc(t.custom_name)}"` +
+        ` oninput="tracks[${i}].custom_name=this.value" />` +
+        `<button class="track-reset" title="Reset ke judul asli" onclick="resetOne(${i})">&#x21BA;</button>`;
+      c.appendChild(div);
+    });
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  // --- Rename helpers ---
+  function applyBulkRename() {
+    const prefix = document.getElementById('bulk-prefix').value.trim();
+    if (!prefix) { alert('Isi prefix terlebih dahulu.'); return; }
+    tracks.forEach((t, i) => { t.custom_name = `${prefix} ${i + 1}`; });
+    renderTracks();
+  }
+
+  function resetAllNames() {
+    tracks.forEach((t, i) => { t.custom_name = origTitles[i]; });
+    renderTracks();
+  }
+
+  function resetOne(i) {
+    tracks[i].custom_name = origTitles[i];
+    renderTracks();
+  }
+
+  // --- Download ---
+  async function startDownload() {
+    if (!tracks.length) return;
+
+    const fmt = document.getElementById('format-select').value;
+    const quality = document.getElementById('quality-select').value;
+    const dlBtn = document.getElementById('download-btn');
+    const fetchBtn = document.getElementById('fetch-btn');
+
+    dlBtn.disabled = true;
+    fetchBtn.disabled = true;
+
+    const progCard = document.getElementById('progress-card');
+    progCard.classList.remove('hidden');
+    document.getElementById('log-container').innerHTML = '';
+    document.getElementById('progress-fill').style.width = '0%';
+    document.getElementById('progress-text').textContent = `0 / ${tracks.length}`;
+
+    // Open SSE first, then start download
+    const evtSource = new EventSource(`/progress/${sessionId}`);
+    evtSource.onmessage = e => {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'ping') return;
+      if (msg.type === 'progress') {
+        const pct = (msg.current / msg.total * 100).toFixed(1);
+        document.getElementById('progress-fill').style.width = pct + '%';
+        document.getElementById('progress-text').textContent =
+          `${msg.current} / ${msg.total}  (${pct}%)`;
+        upsertLog(msg);
+      }
+      if (msg.type === 'complete') {
+        evtSource.close();
+        dlBtn.disabled = false;
+        fetchBtn.disabled = false;
+        document.getElementById('progress-fill').style.width = '100%';
+        document.getElementById('progress-text').textContent =
+          `Selesai ✓  ${tracks.length} / ${tracks.length}`;
+        if (msg.target_dir) {
+          document.getElementById('path-preview').innerHTML =
+            '&#x2705; Disimpan ke: <span class="hl">' + esc(msg.target_dir) + '</span>';
+        }
+      }
+    };
+    evtSource.onerror = () => evtSource.close();
+
+    const useSubfolder = document.getElementById('subfolder-check').checked;
+    const subfolder = useSubfolder ? document.getElementById('subfolder-name').value.trim() : '';
+
+    await fetch('/download', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tracks: tracks.map(t => ({ url: t.url, custom_name: t.custom_name })),
+        format: fmt,
+        quality,
+        subfolder,
+        session_id: sessionId,
+      }),
+    });
+  }
+
+  // --- Settings modal ---
+  function openSettings() {
+    fetch('/settings', {method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({download_dir: '__get__'})})
+      .catch(()=>{});
+    // Pre-fill from path preview
+    const cur = document.getElementById('path-preview').textContent.replace(/^📁\s*/,'').replace(/\\$/,'').trim();
+    document.getElementById('settings-path').value = cur || BASE_DIR;
+    document.getElementById('save-ok').style.display = 'none';
+    document.getElementById('settings-modal').classList.remove('hidden');
+  }
+
+  function closeSettings() {
+    document.getElementById('settings-modal').classList.add('hidden');
+  }
+
+  async function saveSettings() {
+    const path = document.getElementById('settings-path').value.trim();
+    if (!path) return alert('Path tidak boleh kosong.');
+    const res = await fetch('/settings', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({download_dir: path}),
+    });
+    const data = await res.json();
+    if (data.error) { alert('Error: ' + data.error); return; }
+    document.getElementById('save-ok').style.display = '';
+    // Update base dir in memory & preview
+    BASE_DIR_CURRENT = data.download_dir;
+    updatePathPreview();
+    setTimeout(closeSettings, 1200);
+  }
+
+  let BASE_DIR_CURRENT = BASE_DIR;
+
+  function upsertLog(msg) {
+    const log = document.getElementById('log-container');
+    const id = 'log-' + msg.current;
+    let el = document.getElementById(id);
+    if (!el) { el = document.createElement('div'); el.id = id; log.appendChild(el); }
+
+    const icons = { done: '✓', error: '✗', downloading: '⟳' };
+    const cls =  { done: 'done', error: 'error', downloading: 'active' };
+    const detail = msg.status === 'done' ? 'Selesai' :
+                   msg.status === 'error' ? ('Error: ' + (msg.error || '')) :
+                   'Downloading...';
+
+    el.className = 'log-item ' + (cls[msg.status] || '');
+    el.innerHTML =
+      `<span class="log-icon">${icons[msg.status] || '·'}</span>` +
+      `<span>${esc(msg.name)}</span><span style="margin-left:auto;font-size:11px;">${detail}</span>`;
+    log.scrollTop = log.scrollHeight;
+  }
+</script>
+</body>
+</html>

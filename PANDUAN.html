@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panduan YT Downloader</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --card: #161b22; --card2: #1c2128;
+      --border: #30363d; --accent: #e94560; --accent2: #ff6b9d;
+      --text: #c9d1d9; --muted: #8b949e; --green: #3fb950;
+      --yellow: #d29922; --blue: #79c0ff;
+    }
+    body {
+      background: var(--bg); color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px; line-height: 1.7;
+    }
+
+    /* Layout */
+    .layout { display: flex; min-height: 100vh; }
+    .sidebar {
+      width: 240px; flex-shrink: 0;
+      background: var(--card); border-right: 1px solid var(--border);
+      padding: 24px 0; position: sticky; top: 0; height: 100vh;
+      overflow-y: auto;
+    }
+    .sidebar-logo { padding: 0 20px 20px; border-bottom: 1px solid var(--border); margin-bottom: 16px; }
+    .sidebar-logo .title { font-size: 16px; color: var(--accent); font-weight: 700; }
+    .sidebar-logo .sub { font-size: 11px; color: var(--muted); }
+    .nav-item {
+      display: block; padding: 7px 20px; font-size: 13px;
+      color: var(--muted); text-decoration: none; transition: color 0.15s;
+      border-left: 2px solid transparent;
+    }
+    .nav-item:hover { color: var(--text); }
+    .nav-item.active { color: var(--accent); border-left-color: var(--accent); background: #e9456010; }
+    .nav-section {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.8px; color: var(--muted); padding: 14px 20px 4px;
+    }
+
+    .content { flex: 1; max-width: 760px; padding: 40px 48px 80px; }
+
+    /* Typography */
+    h1 { font-size: 26px; color: var(--text); margin-bottom: 8px; }
+    h2 { font-size: 18px; color: var(--text); margin: 40px 0 14px;
+         padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 14px; color: var(--accent2); margin: 24px 0 10px; font-weight: 600; }
+    p  { color: var(--muted); margin-bottom: 12px; }
+    a  { color: var(--accent); }
+    strong { color: var(--text); }
+
+    /* Hero */
+    .hero {
+      background: linear-gradient(135deg, #e9456018, #0d1117 60%);
+      border: 1px solid #e9456030; border-radius: 12px;
+      padding: 28px 32px; margin-bottom: 32px;
+    }
+    .hero h1 { color: var(--accent); }
+    .hero p  { color: var(--text); font-size: 15px; margin-bottom: 0; }
+
+    /* Badges */
+    .badge {
+      display: inline-block; font-size: 11px; padding: 2px 8px;
+      border-radius: 10px; font-weight: 600; margin-right: 4px; vertical-align: middle;
+    }
+    .badge-green  { background: #3fb95022; color: var(--green);  border: 1px solid #3fb95044; }
+    .badge-red    { background: #f8514922; color: #f85149;       border: 1px solid #f8514944; }
+    .badge-yellow { background: #d2992222; color: var(--yellow); border: 1px solid #d2992244; }
+    .badge-blue   { background: #79c0ff22; color: var(--blue);   border: 1px solid #79c0ff44; }
+
+    /* Steps */
+    .steps { counter-reset: step; }
+    .step {
+      display: flex; gap: 16px; margin-bottom: 20px; align-items: flex-start;
+    }
+    .step-num {
+      counter-increment: step;
+      background: var(--accent); color: #fff; border-radius: 50%;
+      width: 28px; height: 28px; display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 700; flex-shrink: 0; margin-top: 2px;
+    }
+    .step-num::before { content: counter(step); }
+    .step-body h3 { margin-top: 0; }
+    .step-body p  { margin-bottom: 6px; }
+
+    /* Code */
+    code {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 4px; padding: 1px 6px; font-size: 12px;
+      font-family: 'Consolas', monospace; color: var(--blue);
+    }
+    pre {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; font-size: 12px;
+      font-family: 'Consolas', monospace; color: var(--text);
+      overflow-x: auto; margin: 10px 0 16px;
+    }
+    pre .comment { color: var(--muted); }
+
+    /* Cards */
+    .card {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 10px; padding: 18px 20px; margin-bottom: 14px;
+    }
+    .card-title { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+
+    /* Table */
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 20px; }
+    th { text-align: left; font-size: 12px; color: var(--muted);
+         text-transform: uppercase; letter-spacing: 0.5px;
+         padding: 8px 12px; border-bottom: 1px solid var(--border); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+    td strong { color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+
+    /* Alert boxes */
+    .alert {
+      border-radius: 8px; padding: 12px 16px; margin: 14px 0;
+      font-size: 13px; display: flex; gap: 10px; align-items: flex-start;
+    }
+    .alert-warn  { background: #d2992218; border: 1px solid #d2992244; color: var(--yellow); }
+    .alert-info  { background: #79c0ff18; border: 1px solid #79c0ff44; color: var(--blue); }
+    .alert-ok    { background: #3fb95018; border: 1px solid #3fb95044; color: var(--green); }
+    .alert-icon  { font-size: 16px; flex-shrink: 0; }
+
+    /* Mockup */
+    .mockup {
+      background: var(--card2); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px; font-family: 'Consolas', monospace;
+      font-size: 12px; color: var(--muted); margin: 12px 0; line-height: 1.8;
+    }
+    .mockup .hl  { color: var(--accent); }
+    .mockup .ok  { color: var(--green); }
+    .mockup .err { color: #f85149; }
+    .mockup .dim { color: #444; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .sidebar { display: none; }
+      .content { padding: 24px 20px 60px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="layout">
+
+  <!-- Sidebar nav -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">
+      <div class="title">▶ YT Downloader</div>
+      <div class="sub">Panduan Pengguna</div>
+    </div>
+    <div class="nav-section">Mulai</div>
+    <a class="nav-item" href="#persyaratan">Persyaratan</a>
+    <a class="nav-item" href="#instalasi">Instalasi</a>
+    <a class="nav-item" href="#setup-awal">Setup Pertama Kali</a>
+    <div class="nav-section">Penggunaan</div>
+    <a class="nav-item" href="#download-video">Download Video</a>
+    <a class="nav-item" href="#download-playlist">Download Playlist</a>
+    <a class="nav-item" href="#rename">Rename Track</a>
+    <a class="nav-item" href="#opsi">Format &amp; Kualitas</a>
+    <div class="nav-section">Lainnya</div>
+    <a class="nav-item" href="#settings">Ganti Folder</a>
+    <a class="nav-item" href="#radio">YouTube Radio/Mix</a>
+    <a class="nav-item" href="#faq">FAQ &amp; Troubleshoot</a>
+  </nav>
+
+  <!-- Main content -->
+  <main class="content">
+
+    <div class="hero">
+      <h1>▶ YT Downloader</h1>
+      <p>Download video &amp; playlist YouTube dengan mudah — rename massal, pilih format, simpan ke folder sendiri.</p>
+    </div>
+
+    <!-- ─── PERSYARATAN ─── -->
+    <h2 id="persyaratan">Persyaratan</h2>
+    <table>
+      <tr>
+        <th>Software</th><th>Keterangan</th><th>Status</th>
+      </tr>
+      <tr>
+        <td><strong>Python 3.10+</strong></td>
+        <td>Runtime utama aplikasi</td>
+        <td><span class="badge badge-red">Wajib</span></td>
+      </tr>
+      <tr>
+        <td><strong>FFmpeg</strong></td>
+        <td>Diperlukan untuk MP3 dan video HD (1080p+)</td>
+        <td><span class="badge badge-yellow">Direkomendasikan</span></td>
+      </tr>
+      <tr>
+        <td><strong>Koneksi internet</strong></td>
+        <td>Untuk download dari YouTube</td>
+        <td><span class="badge badge-red">Wajib</span></td>
+      </tr>
+    </table>
+
+    <div class="alert alert-info">
+      <span class="alert-icon">ℹ</span>
+      <div>Tanpa FFmpeg, download masih bisa berjalan untuk format video standar (360p–720p). FFmpeg diperlukan untuk <strong>MP3</strong> dan <strong>1080p</strong> ke atas.</div>
+    </div>
+
+    <!-- ─── INSTALASI ─── -->
+    <h2 id="instalasi">Instalasi</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h3>Install Python</h3>
+          <p>Download dari <a href="https://python.org" target="_blank">python.org</a> dan jalankan installer.<br>
+          <strong>Pastikan centang "Add Python to PATH"</strong> saat instalasi.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h3>Install FFmpeg (Direkomendasikan)</h3>
+          <p>Buka CMD atau PowerShell, ketik:</p>
+          <pre>winget install ffmpeg</pre>
+          <p>Atau download manual dari <a href="https://www.gyan.dev/ffmpeg/builds/" target="_blank">gyan.dev/ffmpeg/builds</a> lalu tambahkan ke PATH.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h3>Jalankan Aplikasi</h3>
+          <p>Double-click file <code>start.bat</code>. Aplikasi akan:</p>
+          <ul style="color:var(--muted);padding-left:18px;">
+            <li>Install dependencies otomatis (<code>flask</code>, <code>yt-dlp</code>)</li>
+            <li>Membuka browser ke <code>http://localhost:5000</code></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── SETUP AWAL ─── -->
+    <h2 id="setup-awal">Setup Pertama Kali</h2>
+    <p>Saat pertama kali dijalankan, aplikasi akan meminta kamu memilih <strong>folder penyimpanan</strong>.</p>
+
+    <div class="mockup">
+      <span class="hl">▶ YT Downloader</span><br>
+      Selamat datang! Sebelum mulai, pilih folder tempat hasil download disimpan.<br><br>
+      Folder Download<br>
+      <span class="dim">┌─────────────────────────────────────────┐</span><br>
+      <span class="dim">│</span> C:\Users\Nama\Downloads\YT             <span class="dim">│</span><br>
+      <span class="dim">└─────────────────────────────────────────┘</span><br><br>
+      Saran cepat: [C:\Users\...\YT] [D:\Download\YT] [E:\Download\sementara]<br><br>
+      <span class="ok">[ Simpan &amp; Mulai → ]</span>
+    </div>
+
+    <p>Masukkan path folder yang diinginkan atau klik salah satu saran cepat, lalu klik <strong>Simpan &amp; Mulai</strong>. Folder akan dibuat otomatis jika belum ada.</p>
+
+    <!-- ─── DOWNLOAD VIDEO ─── -->
+    <h2 id="download-video">Download Video (Single)</h2>
+
+    <div class="steps">
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h3>Tempel URL video</h3>
+          <p>Copy URL dari browser, tempel di kolom URL, lalu klik <strong>Ambil Info</strong> (atau tekan Enter).</p>
+          <pre>https://www.youtube.com/watch?v=xxxxxxxxxxxx</pre>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h3>Edit nama (opsional)</h3>
+          <p>Nama file bisa diedit langsung di kolom track. Klik <strong>↺</strong> untuk reset ke judul asli.</p>
+        </div>
+      </div>
+      <div class="step">
+        <div class="step-num"></div>
+        <div class="step-body">
+          <h3>Pilih format &amp; kualitas, lalu Download</h3>
+          <p>Pilih MP4/MP3/WebM dan kualitas yang diinginkan, klik <strong>Download</strong>.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ─── DOWNLOAD PLAYLIST ─── -->
+    <h2 id="download-playlist">Download Playlist</h2>
+    <p>Sama seperti video, tapi URL adalah link playlist YouTube:</p>
+    <pre>https://www.youtube.com/playlist?list=PLxxxxxxxxxxxxxxxxxx</pre>
+
+    <p>Setelah klik <strong>Ambil Info</strong>, semua track dalam playlist akan ditampilkan. Secara default, aplikasi akan menawarkan membuat <strong>subfolder</strong> dengan nama playlist.</p>
+
+    <div class="mockup">
+      <span class="hl">Subfolder</span><br>
+      <span class="ok">☑</span> Simpan dalam subfolder<br>
+      <span class="dim">┌─────────────────────┐</span><br>
+      <span class="dim">│</span> DJ Mix Collection   <span class="dim">│</span><br>
+      <span class="dim">└─────────────────────┘</span><br>
+      📁 E:\Download\sementara\<span class="hl">DJ Mix Collection</span>\
+    </div>
+
+    <!-- ─── RENAME ─── -->
+    <h2 id="rename">Rename Track</h2>
+
+    <h3>Rename Satu per Satu</h3>
+    <p>Klik langsung pada nama track di daftar dan ketik nama baru. Klik <strong>↺</strong> untuk reset ke judul YouTube asli.</p>
+
+    <h3>Bulk Rename (Massal)</h3>
+    <p>Gunakan fitur <strong>Bulk Rename</strong> untuk memberi nama berurutan secara otomatis:</p>
+
+    <div class="mockup">
+      Prefix: <span class="dim">┌──────┐</span><br>
+             <span class="dim"> │</span> DJ   <span class="dim">│</span><br>
+              <span class="dim">└──────┘</span>  → DJ 1, DJ 2, DJ 3 ...<br><br>
+      <span class="ok">[ Apply ]</span>  <span class="dim">[ Reset Semua ]</span>
+    </div>
+
+    <table>
+      <tr><th>Tombol</th><th>Fungsi</th></tr>
+      <tr><td><strong>Apply</strong></td><td>Terapkan prefix ke semua track</td></tr>
+      <tr><td><strong>Reset Semua</strong></td><td>Kembalikan semua nama ke judul YouTube asli</td></tr>
+      <tr><td><strong>↺</strong> (per track)</td><td>Reset satu track ke judul aslinya</td></tr>
+    </table>
+
+    <!-- ─── FORMAT & KUALITAS ─── -->
+    <h2 id="opsi">Format &amp; Kualitas</h2>
+
+    <table>
+      <tr><th>Format</th><th>Keterangan</th><th>FFmpeg</th></tr>
+      <tr>
+        <td><strong>MP4</strong></td>
+        <td>Video dengan audio. Kompatibel luas.</td>
+        <td><span class="badge badge-yellow">Untuk 1080p+</span></td>
+      </tr>
+      <tr>
+        <td><strong>MP3</strong></td>
+        <td>Audio saja, 192kbps.</td>
+        <td><span class="badge badge-red">Wajib</span></td>
+      </tr>
+      <tr>
+        <td><strong>WebM</strong></td>
+        <td>Format open-source Google. Kualitas baik.</td>
+        <td><span class="badge badge-yellow">Untuk kualitas tinggi</span></td>
+      </tr>
+    </table>
+
+    <table>
+      <tr><th>Kualitas</th><th>Resolusi</th></tr>
+      <tr><td><strong>Best Available</strong></td><td>Tertinggi yang tersedia di YouTube</td></tr>
+      <tr><td><strong>1080p</strong></td><td>Full HD — butuh FFmpeg</td></tr>
+      <tr><td><strong>720p</strong></td><td>HD — umumnya tanpa FFmpeg</td></tr>
+      <tr><td><strong>480p / 360p</strong></td><td>Standar — tidak butuh FFmpeg</td></tr>
+    </table>
+
+    <!-- ─── SETTINGS ─── -->
+    <h2 id="settings">Ganti Folder Penyimpanan</h2>
+    <p>Klik ikon <strong>⚙</strong> di pojok kanan atas halaman utama untuk mengubah folder download kapan saja.</p>
+
+    <div class="mockup">
+      <span class="hl">⚙ Pengaturan</span><br>
+      Ubah folder penyimpanan default.<br><br>
+      Folder Download<br>
+      <span class="dim">┌─────────────────────────────────┐</span><br>
+      <span class="dim">│</span> E:\Download\sementara          <span class="dim">│</span><br>
+      <span class="dim">└─────────────────────────────────┘</span><br><br>
+      <span class="dim">[ Batal ]</span>  <span class="ok">[ Simpan ]</span>
+    </div>
+
+    <!-- ─── RADIO/MIX ─── -->
+    <h2 id="radio">YouTube Radio / Mix</h2>
+    <p>Link YouTube Radio/Mix (<code>list=RD...</code> atau <code>start_radio=1</code>) adalah playlist <em>auto-generated</em> yang bisa berisi ratusan hingga ribuan track.</p>
+
+    <div class="alert alert-warn">
+      <span class="alert-icon">⚠</span>
+      <div>Jangan fetch tanpa batas — bisa lama sekali dan hasilnya terlalu banyak. Selalu gunakan fitur <strong>Batas track</strong>.</div>
+    </div>
+
+    <p>Saat URL Radio/Mix terdeteksi, aplikasi otomatis menampilkan peringatan dan menyarankan batas <strong>25 track</strong>. Angka ini bisa diubah sesuai kebutuhan.</p>
+
+    <!-- ─── FAQ ─── -->
+    <h2 id="faq">FAQ &amp; Troubleshoot</h2>
+
+    <div class="card">
+      <div class="card-title">❌ Error: ffprobe and ffmpeg not found</div>
+      <p>FFmpeg belum terinstall atau tidak ada di PATH. Jalankan perintah ini di CMD:</p>
+      <pre>winget install ffmpeg</pre>
+      <p>Setelah selesai, tutup dan buka ulang <code>start.bat</code>.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">❌ Error saat fetch playlist — "could not find..."</div>
+      <p>URL mungkin salah atau video bersifat privat/region-locked. Pastikan URL bisa dibuka di browser terlebih dahulu.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚠ Download berhasil tapi file tidak ditemukan</div>
+      <p>Cek folder yang ditampilkan di bagian <strong>Simpan dalam subfolder</strong> di halaman utama. Klik ikon ⚙ untuk melihat folder aktif.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚠ Playlist fetch lama sekali</div>
+      <p>Kemungkinan playlist sangat panjang atau koneksi lambat. Untuk Radio/Mix, gunakan fitur <strong>Batas track</strong>. Untuk playlist biasa yang panjang, bisa isi batas track juga sebelum fetch.</p>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🔄 Update yt-dlp jika video tidak bisa didownload</div>
+      <p>YouTube sering update. Jika tiba-tiba banyak error, update yt-dlp:</p>
+      <pre>pip install -U yt-dlp</pre>
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌐 Akses dari perangkat lain di jaringan yang sama</div>
+      <p>Buka <code>app.py</code>, ubah baris terakhir dari <code>app.run(...)</code> menjadi:</p>
+      <pre>app.run(debug=False, host='0.0.0.0', port=5000, threaded=True)</pre>
+      <p>Lalu akses dari perangkat lain via <code>http://[IP-komputer]:5000</code>.</p>
+    </div>
+
+    <div style="margin-top:48px;padding-top:24px;border-top:1px solid var(--border);">
+      <p style="font-size:12px;">YT Downloader — dibuat dengan yt-dlp + Flask &nbsp;·&nbsp;
+      Panduan ini bisa dibuka offline kapan saja.</p>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // Highlight active nav item on scroll
+  const sections = document.querySelectorAll('h2[id]');
+  const navItems = document.querySelectorAll('.nav-item');
+  window.addEventListener('scroll', () => {
+    let cur = '';
+    sections.forEach(s => { if (window.scrollY >= s.offsetTop - 80) cur = s.id; });
+    navItems.forEach(a => {
+      a.classList.toggle('active', a.getAttribute('href') === '#' + cur);
+    });
+  });
+</script>
+</body>
+</html>

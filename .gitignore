@@ -1,0 +1,17 @@
+# Config (berisi path lokal masing-masing user)
+config.json
+
+# Hasil download
+downloads/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# OS
+.DS_Store
+Thumbs.db
