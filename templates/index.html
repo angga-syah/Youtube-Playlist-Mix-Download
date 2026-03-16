@@ -62,7 +62,7 @@
 
     .row { display: flex; gap: 8px; align-items: center; }
 
-    input[type=text], select {
+    input[type=text], select, textarea {
       background: var(--input-bg);
       border: 1px solid var(--border);
       border-radius: 6px;
@@ -71,10 +71,17 @@
       font-size: 14px;
       outline: none;
       transition: border-color 0.15s;
+      font-family: inherit;
     }
-    input[type=text]:focus, select:focus { border-color: var(--accent); }
+    input[type=text]:focus, select:focus, textarea:focus { border-color: var(--accent); }
     input[type=text] { width: 100%; }
     select { cursor: pointer; }
+    textarea#url-input {
+      width: 100%; resize: vertical;
+      min-height: 42px; max-height: 220px;
+      line-height: 1.6; overflow-y: auto;
+    }
+    .url-hint { font-size: 11px; color: var(--muted); margin-top: 5px; }
 
     .btn {
       background: var(--accent);
@@ -212,7 +219,8 @@
       font-weight: 500;
     }
     .badge-playlist { background: #388bfd22; color: #79c0ff; border: 1px solid #388bfd44; }
-    .badge-video { background: #3fb95022; color: var(--green); border: 1px solid #3fb95044; }
+    .badge-video    { background: #3fb95022; color: var(--green); border: 1px solid #3fb95044; }
+    .badge-blue     { background: #e9456022; color: var(--accent2); border: 1px solid #e9456044; }
 
     .info-row {
       display: flex;
@@ -359,11 +367,11 @@
   <!-- URL Input -->
   <div class="card">
     <div class="card-title">URL YouTube</div>
-    <div class="row">
-      <input type="text" id="url-input"
-        placeholder="https://www.youtube.com/watch?v=... atau playlist link"
-        onkeydown="if(event.key==='Enter') fetchInfo()"
-        oninput="onUrlInput()" />
+    <textarea id="url-input" rows="2"
+      placeholder="Paste satu atau beberapa URL (satu per baris)&#10;https://youtube.com/watch?v=...&#10;https://youtube.com/playlist?list=..."
+      oninput="onUrlInput()"></textarea>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;">
+      <span class="url-hint" id="url-hint"></span>
       <button class="btn" id="fetch-btn" onclick="fetchInfo()">Ambil Info</button>
     </div>
 
@@ -477,7 +485,12 @@
   const BASE_DIR = 'E:\\Download\\sementara';
   const sessionId = Date.now().toString(36) + Math.random().toString(36).slice(2);
 
-  // --- Radio/Mix detection ---
+  // --- URL helpers ---
+  function getUrls() {
+    return document.getElementById('url-input').value
+      .split('\n').map(u => u.trim()).filter(u => u.startsWith('http'));
+  }
+
   function isRadioUrl(url) {
     try {
       const p = new URL(url).searchParams;
@@ -487,11 +500,20 @@
   }
 
   function onUrlInput() {
-    const url = document.getElementById('url-input').value.trim();
-    const radio = isRadioUrl(url);
-    document.getElementById('radio-warn').classList.toggle('hidden', !radio);
-    document.getElementById('limit-row').style.display = radio ? '' : 'none';
-    if (radio && !document.getElementById('track-limit').value) {
+    const urls = getUrls();
+    const n = urls.length;
+    const hint = document.getElementById('url-hint');
+    if (n === 0) { hint.textContent = ''; }
+    else if (n === 1) { hint.textContent = '1 URL'; }
+    else { hint.textContent = `${n} URL terdeteksi`; }
+
+    document.getElementById('fetch-btn').textContent =
+      n > 1 ? `Fetch All (${n})` : 'Ambil Info';
+
+    const anyRadio = urls.some(u => isRadioUrl(u));
+    document.getElementById('radio-warn').classList.toggle('hidden', !anyRadio);
+    document.getElementById('limit-row').style.display = anyRadio ? '' : 'none';
+    if (anyRadio && !document.getElementById('track-limit').value) {
       document.getElementById('track-limit').value = 25;
     }
   }
@@ -538,53 +560,81 @@
       `→ ${p} 1, ${p} 2${n > 2 ? `, ... ${p} ${n}` : ''}`;
   });
 
-  // --- Fetch info ---
+  // --- Fetch info (multi-URL) ---
   async function fetchInfo() {
-    const url = document.getElementById('url-input').value.trim();
-    if (!url) return alert('Masukkan URL terlebih dahulu.');
+    const urls = getUrls();
+    if (!urls.length) return alert('Masukkan minimal satu URL.');
 
     const btn = document.getElementById('fetch-btn');
     btn.disabled = true;
-    btn.innerHTML = '<span class="spinner"></span> Loading...';
 
-    try {
-      const limitVal = document.getElementById('track-limit').value.trim();
-      const limit = limitVal ? parseInt(limitVal, 10) : null;
+    const limitVal = document.getElementById('track-limit').value.trim();
+    const limit = limitVal ? parseInt(limitVal, 10) : null;
 
-      const res = await fetch('/fetch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, limit }),
-      });
-      const data = await res.json();
-      if (data.error) { alert('Error: ' + data.error); return; }
+    tracks = [];
+    origTitles = [];
+    const errors = [];
+    let firstData = null;
 
-      tracks = data.tracks;
-      origTitles = data.tracks.map(t => t.title);
-      mediaType = data.type;
-      mediaTitle = data.title;
+    for (let i = 0; i < urls.length; i++) {
+      btn.innerHTML = `<span class="spinner"></span> ${i + 1}/${urls.length}`;
+      try {
+        const res = await fetch('/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url: urls[i], limit }),
+        });
+        const data = await res.json();
+        if (data.error) { errors.push(`URL ${i+1}: ${data.error}`); continue; }
 
-      document.getElementById('playlist-title').textContent = data.title;
-      const badge = document.getElementById('type-badge');
-      badge.textContent = data.type === 'playlist' ? 'Playlist' : 'Video';
-      badge.className = 'badge ' + (data.type === 'playlist' ? 'badge-playlist' : 'badge-video');
-      document.getElementById('track-count').textContent =
-        `${data.count} track${data.count !== 1 ? 's' : ''}` +
-        (data.limited ? ' (dibatasi)' : '');
-
-      renderTracks();
-      setupSubfolderUI(data.type, data.title);
-
-      document.getElementById('tracks-card').classList.remove('hidden');
-      document.getElementById('options-card').classList.remove('hidden');
-      document.getElementById('progress-card').classList.add('hidden');
-
-    } catch (e) {
-      alert('Gagal: ' + e.message);
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Ambil Info';
+        if (!firstData) firstData = data;
+        const offset = tracks.length;
+        (data.tracks || []).forEach((t, idx) => {
+          t.index = offset + idx + 1;
+          tracks.push(t);
+          origTitles.push(t.title);
+        });
+      } catch (e) {
+        errors.push(`URL ${i+1}: ${e.message}`);
+      }
     }
+
+    btn.disabled = false;
+    btn.textContent = urls.length > 1 ? `Fetch All (${urls.length})` : 'Ambil Info';
+
+    if (!tracks.length) {
+      alert('Tidak ada track yang berhasil.\n\n' + errors.join('\n'));
+      return;
+    }
+
+    if (errors.length) {
+      console.warn('Beberapa URL gagal:\n' + errors.join('\n'));
+    }
+
+    // Update UI header
+    const isMulti = urls.length > 1;
+    const displayTitle = isMulti ? `${urls.length} sumber` : (firstData?.title || 'Playlist');
+    const displayType  = isMulti ? 'multi' : firstData?.type;
+
+    document.getElementById('playlist-title').textContent = displayTitle;
+    const badge = document.getElementById('type-badge');
+    if (isMulti) {
+      badge.textContent = `${tracks.length} tracks`;
+      badge.className = 'badge badge-blue';
+    } else {
+      badge.textContent = firstData?.type === 'playlist' ? 'Playlist' : 'Video';
+      badge.className = 'badge ' + (firstData?.type === 'playlist' ? 'badge-playlist' : 'badge-video');
+    }
+    document.getElementById('track-count').textContent =
+      `${tracks.length} track${tracks.length !== 1 ? 's' : ''}` +
+      (errors.length ? ` · ${errors.length} gagal` : '');
+
+    renderTracks();
+    setupSubfolderUI(isMulti ? 'video' : (firstData?.type || 'video'), displayTitle);
+
+    document.getElementById('tracks-card').classList.remove('hidden');
+    document.getElementById('options-card').classList.remove('hidden');
+    document.getElementById('progress-card').classList.add('hidden');
   }
 
   // --- Render track list ---
