@@ -163,16 +163,82 @@ def fetch():
         return jsonify({"error": str(exc)}), 400
 
 
+# ── Formats ───────────────────────────────────────────────────────────────────
+
+@app.route("/formats", methods=["POST"])
+def get_formats():
+    url = ((request.json or {}).get("url") or "").strip()
+    if not url:
+        return jsonify({"error": "URL kosong"}), 400
+    try:
+        with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True}) as ydl:
+            info = ydl.extract_info(url, download=False)
+
+        video_map: dict = {}   # height → best entry
+        audio_map: dict = {}   # (ext, bitrate_bucket) → best entry
+
+        for f in (info.get("formats") or []):
+            vc  = f.get("vcodec") or "none"
+            ac  = f.get("acodec") or "none"
+            has_v = vc != "none"
+            has_a = ac != "none"
+            fid   = f.get("format_id", "")
+            ext   = f.get("ext", "")
+            size  = f.get("filesize") or f.get("filesize_approx")
+            tbr   = f.get("tbr") or 0
+
+            if has_v:
+                h = f.get("height") or 0
+                combined = has_a
+                cur = video_map.get(h)
+                # Prefer combined > video-only; within same type prefer higher tbr
+                if cur is None or (combined and not cur["combined"]) or \
+                   (combined == cur["combined"] and tbr > cur["tbr"]):
+                    video_map[h] = {
+                        "height": h, "ext": ext, "combined": combined,
+                        "size": size, "tbr": tbr, "format_id": fid, "vcodec": vc,
+                    }
+            elif has_a:
+                abr    = f.get("abr") or 0
+                bucket = round(abr / 16) * 16   # group nearby bitrates
+                key    = (ext, bucket)
+                cur = audio_map.get(key)
+                if cur is None or abr > cur["abr"]:
+                    audio_map[key] = {
+                        "ext": ext, "abr": abr,
+                        "size": size, "format_id": fid,
+                    }
+
+        video_list = sorted(video_map.values(),
+                            key=lambda x: x["height"], reverse=True)
+        audio_list = sorted(audio_map.values(),
+                            key=lambda x: x["abr"], reverse=True)
+        # MP3 option (always last, needs FFmpeg)
+        audio_list.append({"ext": "mp3", "abr": 192, "size": None,
+                           "format_id": "mp3", "needs_ffmpeg": True})
+
+        return jsonify({"video": video_list, "audio": audio_list})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 400
+
+
 # ── Download ──────────────────────────────────────────────────────────────────
 
 @app.route("/download", methods=["POST"])
 def download():
-    data      = request.json
-    tracks    = data.get("tracks") or []
-    fmt       = data.get("format", "mp4")
-    quality   = data.get("quality", "best")
+    data       = request.json
+    tracks     = data.get("tracks") or []
     session_id = data.get("session_id", "default")
-    subfolder = sanitize_filename(data.get("subfolder") or "")
+    subfolder  = sanitize_filename(data.get("subfolder") or "")
+
+    # Format selection — new (format_id) or legacy (format+quality)
+    format_id   = data.get("format_id")      # e.g. "137", "140", "mp3"
+    needs_merge = data.get("needs_merge", False)
+    target_ext  = data.get("ext", "mp4")
+
+    # Legacy fallback
+    fmt     = data.get("format", "mp4")
+    quality = data.get("quality", "best")
 
     base = get_download_dir()
     target_dir = os.path.join(base, subfolder) if subfolder else base
@@ -184,6 +250,28 @@ def download():
 
     def build_opts(safe_name: str) -> dict:
         outtmpl = os.path.join(target_dir, f"{safe_name}.%(ext)s")
+
+        # ── New: specific format_id ──
+        if format_id:
+            if format_id == "mp3":
+                return {
+                    "format": "bestaudio/best", "outtmpl": outtmpl,
+                    "postprocessors": [{
+                        "key": "FFmpegExtractAudio",
+                        "preferredcodec": "mp3", "preferredquality": "192",
+                    }],
+                    "quiet": True,
+                }
+            if needs_merge:
+                return {
+                    "format": f"{format_id}+bestaudio/{format_id}",
+                    "merge_output_format": target_ext,
+                    "outtmpl": outtmpl,
+                    "quiet": True,
+                }
+            return {"format": format_id, "outtmpl": outtmpl, "quiet": True}
+
+        # ── Legacy: format + quality dropdowns ──
         if fmt == "mp3":
             return {
                 "format": "bestaudio/best", "outtmpl": outtmpl,
@@ -193,12 +281,11 @@ def download():
                 }],
                 "quiet": True,
             }
-        height_filter = "" if quality == "best" else f"[height<={quality}]"
+        h = "" if quality == "best" else f"[height<={quality}]"
         return {
-            "format": f"bestvideo{height_filter}+bestaudio/best{height_filter}/best",
+            "format": f"bestvideo{h}+bestaudio/best{h}/best",
             "merge_output_format": fmt,
-            "outtmpl": outtmpl,
-            "quiet": True,
+            "outtmpl": outtmpl, "quiet": True,
         }
 
     def do_download():

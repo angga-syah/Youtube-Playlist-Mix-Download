@@ -310,6 +310,30 @@
     }
     .subfolder-path .hl { color: var(--accent2); font-weight: 600; }
 
+    /* Format picker */
+    .fmt-section { margin-bottom: 14px; }
+    .fmt-section-title {
+      font-size: 11px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.6px; color: var(--muted); margin-bottom: 8px;
+    }
+    .fmt-option {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 12px; border-radius: 7px; cursor: pointer;
+      border: 1px solid transparent; transition: border-color 0.15s, background 0.15s;
+      margin-bottom: 4px;
+    }
+    .fmt-option:hover { background: var(--card2); }
+    .fmt-option.selected { border-color: var(--accent); background: #e9456012; }
+    .fmt-option input[type=radio] { accent-color: var(--accent); width:15px; height:15px; flex-shrink:0; }
+    .fmt-meta { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; flex:1; }
+    .fmt-quality { font-weight: 700; font-size: 14px; min-width: 52px; }
+    .fmt-ext { font-size: 12px; color: var(--muted); background: var(--card2);
+               padding: 1px 7px; border-radius: 4px; border: 1px solid var(--border); }
+    .fmt-size { font-size: 12px; color: var(--muted); margin-left: auto; }
+    .fmt-badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; font-weight:600; }
+    .fmt-badge-ffmpeg { background: #d2992222; color: var(--yellow); border: 1px solid #d2992244; }
+    .fmt-badge-ok     { background: #3fb95022; color: var(--green);  border: 1px solid #3fb95044; }
+
     /* Settings modal */
     .modal-bg {
       position: fixed; inset: 0; background: #000a;
@@ -418,50 +442,32 @@
 
   <!-- Download Options -->
   <div class="card hidden" id="options-card">
-    <div class="card-title">Opsi Download</div>
-    <div class="options-grid">
-      <div class="opt-group">
-        <div class="opt-label">Format File</div>
-        <select id="format-select" onchange="onFormatChange()">
-          <option value="mp4">&#x1F3AC; MP4 (Video)</option>
-          <option value="mp3">&#x1F3B5; MP3 (Audio Only)</option>
-          <option value="webm">&#x1F4FA; WebM (Video)</option>
-        </select>
-      </div>
-      <div class="opt-group" id="quality-group">
-        <div class="opt-label">Kualitas</div>
-        <select id="quality-select">
-          <option value="best">&#x2B50; Best Available</option>
-          <option value="1080">1080p</option>
-          <option value="720">720p</option>
-          <option value="480">480p</option>
-          <option value="360">360p</option>
-        </select>
-      </div>
-      <div class="opt-group">
-        <div class="opt-label">&nbsp;</div>
-        <button class="btn btn-green" id="download-btn" onclick="startDownload()">
-          &#x2B07; Download
-        </button>
-      </div>
-    </div>
-    <div class="ffmpeg-warn" id="ffmpeg-warn" style="display:none;">
-      &#x26A0; <strong>FFmpeg diperlukan</strong> untuk MP3 dan video HD terpisah.
-      Download: <a href="https://ffmpeg.org/download.html" style="color:var(--yellow);" target="_blank">ffmpeg.org</a>
-      dan tambahkan ke PATH.
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+      <div class="card-title" style="margin:0;">Format &amp; Kualitas</div>
+      <span id="fmt-loading" class="spinner" style="display:none;"></span>
     </div>
 
-    <!-- Subfolder -->
-    <div class="subfolder-box">
-      <label>
-        <input type="checkbox" id="subfolder-check" onchange="onSubfolderToggle()" />
-        Simpan dalam subfolder
-      </label>
-      <div id="subfolder-input-row" style="margin-top:10px;display:none;">
-        <input type="text" id="subfolder-name" placeholder="Nama subfolder..."
-          oninput="updatePathPreview()" style="width:100%;" />
+    <!-- Format picker -->
+    <div id="fmt-error" class="ffmpeg-warn" style="display:none;"></div>
+    <div id="fmt-list"></div>
+
+    <!-- Subfolder + Download -->
+    <div style="margin-top:16px;display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;">
+      <div style="flex:1;min-width:200px;">
+        <div class="subfolder-box">
+          <label>
+            <input type="checkbox" id="subfolder-check" onchange="onSubfolderToggle()" />
+            Simpan dalam subfolder
+          </label>
+          <div id="subfolder-input-row" style="margin-top:10px;display:none;">
+            <input type="text" id="subfolder-name" placeholder="Nama subfolder..."
+              oninput="updatePathPreview()" style="width:100%;" />
+          </div>
+          <div class="subfolder-path" id="path-preview"></div>
+        </div>
       </div>
-      <div class="subfolder-path" id="path-preview"></div>
+      <button class="btn btn-green" id="download-btn" onclick="startDownload()"
+              style="height:40px;padding:0 28px;">&#x2B07; Download</button>
     </div>
   </div>
 
@@ -543,12 +549,133 @@
     updatePathPreview();
   }
 
-  // --- Format change ---
-  function onFormatChange() {
-    const fmt = document.getElementById('format-select').value;
-    document.getElementById('quality-group').style.display = fmt === 'mp3' ? 'none' : '';
-    document.getElementById('ffmpeg-warn').style.display =
-      (fmt === 'mp3' || fmt === 'webm') ? '' : 'none';
+  // --- Format picker ---
+  let selectedFmt = null;  // {format_id, needs_merge, ext, label}
+
+  async function fetchFormats(url) {
+    if (!url) return;
+    document.getElementById('fmt-loading').style.display = '';
+    document.getElementById('fmt-list').innerHTML = '';
+    document.getElementById('fmt-error').style.display = 'none';
+    selectedFmt = null;
+
+    try {
+      const res = await fetch('/formats', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({url}),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      renderFormats(data);
+    } catch (e) {
+      document.getElementById('fmt-error').style.display = '';
+      document.getElementById('fmt-error').textContent = '⚠ Gagal load format: ' + e.message + ' — gunakan pilihan manual.';
+      renderFallbackFormats();
+    } finally {
+      document.getElementById('fmt-loading').style.display = 'none';
+    }
+  }
+
+  function humanSize(bytes) {
+    if (!bytes) return '';
+    if (bytes >= 1e9) return `~${(bytes/1e9).toFixed(1)} GB`;
+    if (bytes >= 1e6) return `~${(bytes/1e6).toFixed(0)} MB`;
+    return `~${(bytes/1e3).toFixed(0)} KB`;
+  }
+
+  function renderFormats(data) {
+    const list = document.getElementById('fmt-list');
+    list.innerHTML = '';
+
+    const makeOption = (id, fmtId, needsMerge, ext, qualityLabel, codecLabel, size, needsFFmpeg) => {
+      const opt = document.createElement('label');
+      opt.className = 'fmt-option';
+      opt.dataset.fmtId = fmtId;
+      opt.dataset.needsMerge = needsMerge;
+      opt.dataset.ext = ext;
+      opt.dataset.label = qualityLabel;
+      opt.innerHTML = `
+        <input type="radio" name="fmt_pick" value="${id}">
+        <div class="fmt-meta">
+          <span class="fmt-quality">${qualityLabel}</span>
+          <span class="fmt-ext">${codecLabel}</span>
+          ${size ? `<span class="fmt-size">${humanSize(size)}</span>` : ''}
+          <span class="fmt-badge ${needsFFmpeg ? 'fmt-badge-ffmpeg' : 'fmt-badge-ok'}">
+            ${needsFFmpeg ? '⚡ FFmpeg' : '✓ Langsung'}
+          </span>
+        </div>`;
+      opt.querySelector('input').addEventListener('change', () => {
+        document.querySelectorAll('.fmt-option').forEach(o => o.classList.remove('selected'));
+        opt.classList.add('selected');
+        selectedFmt = {
+          format_id: opt.dataset.fmtId,
+          needs_merge: opt.dataset.needsMerge === 'true',
+          ext: opt.dataset.ext,
+          label: opt.dataset.label,
+        };
+      });
+      return opt;
+    };
+
+    const addSection = (title, items) => {
+      if (!items.length) return;
+      const sec = document.createElement('div');
+      sec.className = 'fmt-section';
+      sec.innerHTML = `<div class="fmt-section-title">${title}</div>`;
+      items.forEach(el => sec.appendChild(el));
+      list.appendChild(sec);
+    };
+
+    // Video options
+    const videoOpts = (data.video || []).map((f, i) => {
+      const label = f.height ? `${f.height}p` : 'Video';
+      const codec = `${f.ext.toUpperCase()}${f.vcodec && f.vcodec !== 'none' ? ' · ' + f.vcodec.split('.')[0] : ''}`;
+      const needsFFmpeg = !f.combined;
+      return makeOption(`v_${i}`, f.format_id, !f.combined, f.ext, label, codec, f.size, needsFFmpeg);
+    });
+
+    // Audio options
+    const audioOpts = (data.audio || []).map((f, i) => {
+      const label = f.abr ? `${Math.round(f.abr)}kbps` : 'Audio';
+      const codec = f.ext.toUpperCase();
+      const needsFFmpeg = !!f.needs_ffmpeg;
+      return makeOption(`a_${i}`, f.format_id, false, f.ext, label, codec, f.size, needsFFmpeg);
+    });
+
+    addSection('🎬 Video', videoOpts);
+    addSection('🎵 Audio Saja', audioOpts);
+
+    // Auto-select first combined video or first audio
+    const firstCombined = list.querySelector('.fmt-option input[type=radio]');
+    if (firstCombined) { firstCombined.click(); }
+  }
+
+  function renderFallbackFormats() {
+    // Fallback: old-style selectors if /formats fails
+    const list = document.getElementById('fmt-list');
+    list.innerHTML = `
+      <div style="display:flex;gap:12px;flex-wrap:wrap;">
+        <div class="opt-group">
+          <div class="opt-label">Format</div>
+          <select id="format-select-fb">
+            <option value="mp4">MP4</option>
+            <option value="mp3">MP3</option>
+            <option value="webm">WebM</option>
+          </select>
+        </div>
+        <div class="opt-group">
+          <div class="opt-label">Kualitas</div>
+          <select id="quality-select-fb">
+            <option value="best">Best</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+          </select>
+        </div>
+      </div>`;
+    selectedFmt = null; // will use fallback selects
   }
 
   // --- Bulk preview update ---
@@ -635,6 +762,10 @@
     document.getElementById('tracks-card').classList.remove('hidden');
     document.getElementById('options-card').classList.remove('hidden');
     document.getElementById('progress-card').classList.add('hidden');
+
+    // Fetch real formats from first track
+    const firstUrl = tracks[0]?.url;
+    if (firstUrl) fetchFormats(firstUrl);
   }
 
   // --- Render track list ---
@@ -680,22 +811,22 @@
   // --- Download ---
   async function startDownload() {
     if (!tracks.length) return;
+    if (!selectedFmt) {
+      // check fallback selects
+      const fbFmt = document.getElementById('format-select-fb');
+      if (!fbFmt) { alert('Pilih format terlebih dahulu.'); return; }
+    }
 
-    const fmt = document.getElementById('format-select').value;
-    const quality = document.getElementById('quality-select').value;
     const dlBtn = document.getElementById('download-btn');
     const fetchBtn = document.getElementById('fetch-btn');
-
     dlBtn.disabled = true;
     fetchBtn.disabled = true;
 
-    const progCard = document.getElementById('progress-card');
-    progCard.classList.remove('hidden');
+    document.getElementById('progress-card').classList.remove('hidden');
     document.getElementById('log-container').innerHTML = '';
     document.getElementById('progress-fill').style.width = '0%';
     document.getElementById('progress-text').textContent = `0 / ${tracks.length}`;
 
-    // Open SSE first, then start download
     const evtSource = new EventSource(`/progress/${sessionId}`);
     evtSource.onmessage = e => {
       const msg = JSON.parse(e.data);
@@ -725,16 +856,22 @@
     const useSubfolder = document.getElementById('subfolder-check').checked;
     const subfolder = useSubfolder ? document.getElementById('subfolder-name').value.trim() : '';
 
+    // Build payload — new format_id or fallback
+    let payload = { tracks: tracks.map(t => ({url: t.url, custom_name: t.custom_name})),
+                    subfolder, session_id: sessionId };
+    if (selectedFmt) {
+      payload.format_id   = selectedFmt.format_id;
+      payload.needs_merge = selectedFmt.needs_merge;
+      payload.ext         = selectedFmt.ext;
+    } else {
+      payload.format  = document.getElementById('format-select-fb')?.value  || 'mp4';
+      payload.quality = document.getElementById('quality-select-fb')?.value || 'best';
+    }
+
     await fetch('/download', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        tracks: tracks.map(t => ({ url: t.url, custom_name: t.custom_name })),
-        format: fmt,
-        quality,
-        subfolder,
-        session_id: sessionId,
-      }),
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(payload),
     });
   }
 
